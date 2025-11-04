@@ -1,0 +1,45 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<manifest>
+  <control namespace="PDFViewerControl" constructor="PDFViewerControl" version="0.0.1" 
+           display-name-key="PDFViewerControl" description-key="PDFViewerControl description" 
+           control-type="virtual" >
+    
+    <external-service-usage enabled="false">
+      <!-- No external domains needed for basic PDF viewing -->
+    </external-service-usage>
+
+    <!-- Properties for PDF Viewer configuration -->
+    <property name="theme" display-name-key="Theme_Display_Key" description-key="Theme_Desc_Key" 
+              of-type="SingleLine.Text" usage="bound" required="false" />
+    <property name="width" display-name-key="Width_Display_Key" description-key="Width_Desc_Key" 
+              of-type="SingleLine.Text" usage="bound" required="false" />
+    <property name="height" display-name-key="Height_Display_Key" description-key="Height_Desc_Key" 
+              of-type="SingleLine.Text" usage="bound" required="false" />
+    <property name="showThumbnails" display-name-key="ShowThumbnails_Display_Key" 
+              description-key="ShowThumbnails_Desc_Key" of-type="TwoOptions" usage="bound" required="false" />
+    <property name="enableDownload" display-name-key="EnableDownload_Display_Key" 
+              description-key="EnableDownload_Desc_Key" of-type="TwoOptions" usage="bound" required="false" />
+    <property name="enablePrint" display-name-key="EnablePrint_Display_Key" 
+              description-key="EnablePrint_Desc_Key" of-type="TwoOptions" usage="bound" required="false" />
+    <property name="defaultZoom" display-name-key="DefaultZoom_Display_Key" 
+              description-key="DefaultZoom_Desc_Key" of-type="SingleLine.Text" usage="bound" required="false" />
+    <resources>
+      <code path="index.ts" order="1"/>
+      <css path="css/PDFViewer.css" order="1" />
+      <platform-library name="React" version="16.14.0" />
+      <platform-library name="Fluent" version="9.68.0" />
+    </resources>
+
+    <!-- REQUIRED FEATURE USAGES -->
+    <feature-usage>
+      <!-- Essential for file upload functionality -->
+      <uses-feature name="Device.pickFile" required="true" />
+      
+      <!-- Essential for downloading files -->
+      <uses-feature name="Utility" required="true" />
+      
+      <!-- Optional but recommended for enhanced functionality -->
+      <uses-feature name="WebAPI" required="false" />
+    </feature-usage>
+  </control>
+</manifest>

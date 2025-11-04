@@ -1,0 +1,68 @@
+/* Additional styles for PDF Viewer */
+.virtual-pdf-viewer * {
+    box-sizing: border-box;
+}
+
+.virtual-pdf-viewer {
+    --fontFamilyBase: "Segoe UI", "Segoe UI Web (West European)", "Segoe UI", -apple-system, BlinkMacSystemFont, "Roboto", "Helvetica Neue", sans-serif;
+}
+
+/* Ensure proper text selection in PDF */
+.react-pdf__Page__textContent {
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    overflow: hidden;
+    opacity: 0.2;
+    line-height: 1.0;
+}
+
+.react-pdf__Page__textContent span {
+    color: transparent;
+    position: absolute;
+    white-space: pre;
+    cursor: text;
+    transform-origin: 0% 0%;
+}
+
+.react-pdf__Page__annotations {
+    display: none;
+}
+
+/* Custom scrollbars for better UX */
+.thumbnail-sidebar::-webkit-scrollbar {
+    width: 6px;
+}
+
+.thumbnail-sidebar::-webkit-scrollbar-track {
+    background: var(--colorNeutralBackground1);
+}
+
+.thumbnail-sidebar::-webkit-scrollbar-thumb {
+    background: var(--colorNeutralStrokeAccessible);
+    border-radius: 3px;
+}
+
+.thumbnail-sidebar::-webkit-scrollbar-thumb:hover {
+    background: var(--colorNeutralStrokeAccessibleHover);
+}
+
+.pdf-main-content::-webkit-scrollbar {
+    width: 8px;
+    height: 8px;
+}
+
+.pdf-main-content::-webkit-scrollbar-track {
+    background: var(--colorNeutralBackground2);
+}
+
+.pdf-main-content::-webkit-scrollbar-thumb {
+    background: var(--colorNeutralStrokeAccessible);
+    border-radius: 4px;
+}
+
+.pdf-main-content::-webkit-scrollbar-thumb:hover {
+    background: var(--colorNeutralStrokeAccessibleHover);
+}
