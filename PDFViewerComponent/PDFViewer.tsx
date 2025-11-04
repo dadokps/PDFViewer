@@ -15,6 +15,9 @@ import {
     Option,
     Field
 } from '@fluentui/react-components';
+import { AreaSelectionTool, SelectedArea } from './component/Marking/AreaSelectionTool';
+import {  SelectedAreasList } from './component/Marking/SelectedAreasList';
+import './css/PDFViewer.css';
 
 // Declare pdfjsLib in global scope
 declare global {
@@ -48,6 +51,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const [file, setFile] = useState<File | null>(null);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [isPDFJSLoaded, setIsPDFJSLoaded] = useState<boolean>(false);
+
+    // Marking related states
+    const [selectedAreas, setSelectedAreas] = useState<SelectedArea[]>([]);
+    const [isSelectionMode, setIsSelectionMode] = useState<boolean>(false);
+    const [highlightedArea, setHighlightedArea] = useState<SelectedArea | null>(null);
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
@@ -252,6 +260,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         );
     };
 
+    // Marking related handlers
+    const handleAreaSelected = useCallback((area: SelectedArea) => {
+        setSelectedAreas(prev => [...prev, area]);
+    }, []);
+
+    const handleAreaHighlight = useCallback((area: SelectedArea | null) => {
+        setHighlightedArea(area);
+    }, []);
+
+    const handleAreaRemove = useCallback((areaId: string) => {
+        setSelectedAreas(prev => prev.filter(area => area.id !== areaId));
+    }, []);
+
+    const handleClearAllAreas = useCallback(() => {
+        setSelectedAreas([]);
+    }, []);
+
     return (
         <div className="virtual-pdf-viewer">
             {/* Hidden file input */}
@@ -301,6 +326,19 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                             >
                                 {isMobile ? 'Change' : 'Change File'}
                             </Button>
+                            
+                            {/* Area Selection Tool */}
+                            <AreaSelectionTool
+                                canvasRef={canvasRef}
+                                pdfDoc={pdfDoc}
+                                currentPage={pageNumber}
+                                scale={scale}
+                                rotation={rotation}
+                                onAreaSelected={handleAreaSelected}
+                                isSelectionMode={isSelectionMode}
+                                onSelectionModeChange={setIsSelectionMode}
+                                highlightedArea={highlightedArea}
+                            />
                         </ToolbarGroup>
 
                         <ToolbarDivider />
@@ -425,199 +463,19 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                             )}
                         </div>
                     </div>
+
+                    {/* Selected Areas List */}
+                    <div className="selected-areas-container">
+                        <SelectedAreasList
+                            selectedAreas={selectedAreas}
+                            onAreaHighlight={handleAreaHighlight}
+                            onAreaRemove={handleAreaRemove}
+                            onClearAll={handleClearAllAreas}
+                            highlightedArea={highlightedArea}
+                        />
+                    </div>
                 </div>
             )}
-
-            <style>{`
-                .virtual-pdf-viewer {
-                    width: 100%;
-                    height: 100%;
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .file-upload-area {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    padding: 40px 20px;
-                    border: 2px dashed #d1d1d1;
-                    border-radius: 8px;
-                    background-color: #f8f9fa;
-                    height: 100%;
-                }
-
-                .upload-content {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    gap: 12px;
-                    text-align: center;
-                }
-
-                .pdf-container {
-                    display: flex;
-                    flex-direction: column;
-                    height: 100%;
-                    border: 1px solid #e1e1e1;
-                    border-radius: 8px;
-                    overflow: hidden;
-                }
-
-                .pdf-toolbar {
-                    background-color: #f8f9f8;
-                    border-bottom: 1px solid #e1e1e1;
-                    padding: 8px 12px;
-                    flex-wrap: wrap;
-                    gap: 8px;
-                    min-height: 48px;
-                }
-
-                .toolbar-section {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                }
-
-                .page-controls {
-                    display: flex;
-                    align-items: center;
-                    gap: 8px;
-                    margin: 0 8px;
-                }
-
-                .pdf-content-area {
-                    flex: 1;
-                    display: flex;
-                    overflow: hidden;
-                    background-color: #f0f0f0;
-                }
-
-                .thumbnail-sidebar {
-                    background-color: #f8f9f8;
-                    border-right: 1px solid #e1e1e1;
-                    overflow-y: auto;
-                    transition: width 0.3s ease;
-                }
-
-                .thumbnail-sidebar.open {
-                    width: 140px;
-                }
-
-                .thumbnail-sidebar.closed {
-                    width: 0;
-                    border-right: none;
-                }
-
-                .thumbnail-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 8px 12px;
-                    border-bottom: 1px solid #e1e1e1;
-                }
-
-                .thumbnail-list {
-                    padding: 8px;
-                }
-
-                .thumbnail {
-                    cursor: pointer;
-                    margin-bottom: 8px;
-                    padding: 12px 8px;
-                    border: 2px solid transparent;
-                    border-radius: 4px;
-                    text-align: center;
-                    background-color: white;
-                }
-
-                .thumbnail.active {
-                    border-color: #0078d4;
-                    background-color: #e1f0ff;
-                }
-
-                .thumbnail:hover {
-                    background-color: #f3f2f1;
-                }
-
-                .pdf-main-content {
-                    flex: 1;
-                    display: flex;
-                    justify-content: center;
-                    align-items: flex-start;
-                    padding: 20px;
-                    overflow: auto;
-                }
-
-                .pdf-document-container {
-                    display: flex;
-                    justify-content: center;
-                    align-items: flex-start;
-                }
-
-                .pdf-canvas {
-                    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
-                    background-color: white;
-                    max-width: 100%;
-                    max-height: 100%;
-                }
-
-                .loading-container,
-                .error-container {
-                    display: flex;
-                    flex-direction: column;
-                    align-items: center;
-                    justify-content: center;
-                    gap: 16px;
-                    padding: 40px;
-                }
-
-                .error-container {
-                    text-align: center;
-                }
-
-                /* Responsive Design */
-                @media (max-width: 767px) {
-                    .pdf-toolbar {
-                        padding: 8px;
-                        gap: 4px;
-                    }
-
-                    .toolbar-section {
-                        gap: 4px;
-                    }
-
-                    .page-controls {
-                        gap: 4px;
-                    }
-
-                    .pdf-main-content {
-                        padding: 10px;
-                    }
-
-                    .thumbnail-sidebar.open {
-                        width: 100px;
-                    }
-                }
-
-                @media (max-width: 480px) {
-                    .pdf-toolbar {
-                        flex-direction: column;
-                        height: auto;
-                        gap: 8px;
-                    }
-
-                    .toolbar-section {
-                        justify-content: center;
-                        width: 100%;
-                    }
-
-                    .thumbnail-sidebar.open {
-                        width: 80px;
-                    }
-                }
-            `}</style>
         </div>
     );
 };
