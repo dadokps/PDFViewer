@@ -5,6 +5,7 @@ import {
     Text,
     Tooltip
 } from '@fluentui/react-components';
+import '../../css/PDFViewer.css';
 
 interface CanvasOverlayProps {
     canvasRef: React.RefObject<HTMLCanvasElement>;
@@ -85,7 +86,8 @@ interface AreaSelectionToolProps {
         handleMouseDown: (e: React.MouseEvent) => void;
         handleMouseMove: (e: React.MouseEvent) => void;
         handleMouseUp: () => void;
-    }) => void; // ADD THIS
+    }) => void;
+    selectedAreas: SelectedArea[];
 }
 
 export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
@@ -99,7 +101,8 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
     onSelectionModeChange,
     highlightedArea,
     selectionBoxRef,
-    onHandlersReady
+    onHandlersReady,
+    selectedAreas
 }) => {
     const [isSelecting, setIsSelecting] = useState<boolean>(false);
     const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
@@ -288,40 +291,54 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         box.style.display = 'block';
     }, [startPos, currentPos, canvasRef]);
 
-    // Draw highlighted area
+    // Draw all selected areas for current page
     useEffect(() => {
-        if (!canvasRef.current || !highlightedArea || highlightedArea.position.page !== currentPage) return;
+        if (!canvasRef.current) return;
 
         const canvas = canvasRef.current;
         const ctx = canvas.getContext('2d');
         if (!ctx) return;
 
-        // Save current canvas state
-        ctx.save();
+        const drawAllSelectionAreas = () => {
+            // Get all selected areas for the current page
+            const currentPageAreas = selectedAreas.filter(area => area.position.page === currentPage);
+            
+            if (currentPageAreas.length === 0) return;
 
-        // Draw highlight rectangle
-        ctx.strokeStyle = '#0078d4';
-        ctx.lineWidth = 2;
-        ctx.setLineDash([5, 5]);
-        ctx.strokeRect(
-            highlightedArea.position.x,
-            highlightedArea.position.y,
-            highlightedArea.position.width,
-            highlightedArea.position.height
-        );
+            // Save current canvas state
+            ctx.save();
 
-        // Draw semi-transparent fill
-        ctx.fillStyle = 'rgba(0, 120, 212, 0.1)';
-        ctx.fillRect(
-            highlightedArea.position.x,
-            highlightedArea.position.y,
-            highlightedArea.position.width,
-            highlightedArea.position.height
-        );
+            currentPageAreas.forEach((area) => {
+                const isHighlighted = highlightedArea?.id === area.id;
+                
+                // Draw selection rectangle
+                ctx.strokeStyle = isHighlighted ? '#0078d4' : '#28a745'; // Different color for highlighted vs normal
+                ctx.lineWidth = isHighlighted ? 3 : 2;
+                ctx.setLineDash(isHighlighted ? [5, 5] : []);
+                ctx.strokeRect(
+                    area.position.x,
+                    area.position.y,
+                    area.position.width,
+                    area.position.height
+                );
 
-        // Restore canvas state
-        ctx.restore();
-    }, [highlightedArea, currentPage, canvasRef]);
+                // Draw semi-transparent fill
+                ctx.fillStyle = isHighlighted ? 'rgba(0, 120, 212, 0.2)' : 'rgba(40, 167, 69, 0.1)';
+                ctx.fillRect(
+                    area.position.x,
+                    area.position.y,
+                    area.position.width,
+                    area.position.height
+                );
+            });
+
+            // Restore canvas state
+            ctx.restore();
+        };
+
+        // Use requestAnimationFrame to ensure we draw after the PDF has finished rendering
+        requestAnimationFrame(drawAllSelectionAreas);
+    }, [selectedAreas, highlightedArea, currentPage, canvasRef]);
 
     // Pass handlers to parent component
     useEffect(() => {
@@ -344,30 +361,6 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
                     {isSelectionMode ? "✔ Selection Mode" : "📐 Select Areas"}
                 </Button>
             </Tooltip>
-
-            <style>{`
-                .area-selection-tool {
-                    position: relative;
-                    display: flex;
-                    align-items: center;
-                }
-
-                .selection-box {
-                    transition: all 0.1s ease;
-                }
-
-                .selection-overlay {
-                    background: transparent;
-                }
-
-                @media (max-width: 768px) {
-                    .area-selection-tool {
-                        flex-direction: column;
-                        align-items: flex-start;
-                        gap: 8px;
-                    }
-                }
-            `}</style>
         </div>
     );
 };

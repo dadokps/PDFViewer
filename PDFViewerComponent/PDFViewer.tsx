@@ -166,6 +166,13 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             };
 
             await page.render(renderContext).promise;
+            
+            // Trigger selection area drawing after page render is complete
+            // This will ensure selection boxes are drawn on top of the PDF
+            setTimeout(() => {
+                // Force a re-render of the selection areas
+                setSelectedAreas(prev => [...prev]);
+            }, 0);
         } catch (err) {
             console.error('Error rendering page:', err);
             setError('Error displaying PDF page.');
@@ -361,6 +368,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                                 highlightedArea={highlightedArea}
                                 selectionBoxRef={selectionBoxRef}
                                 onHandlersReady={updateMouseHandlers}
+                                selectedAreas={selectedAreas}
                             />
                         </ToolbarGroup>
 

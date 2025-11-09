@@ -169,6 +169,28 @@
     overflow: hidden;
 }
 
+ .area-selection-tool {
+    position: relative;
+    display: flex;
+    align-items: center;
+}
+
+.selection-box {
+    transition: all 0.1s ease;
+}
+
+.selection-overlay {
+    background: transparent;
+}
+
+@media (max-width: 768px) {
+    .area-selection-tool {
+        flex-direction: column;
+        align-items: flex-start;
+        gap: 8px;
+    }
+}
+
 /* Responsive Design */
 @media (max-width: 767px) {
     .pdf-toolbar {
