@@ -123,7 +123,7 @@ export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
                                     {truncateText(area.text)}
                                 </Text>
                                 <Text size={100} className="area-dimensions">
-                                    {Math.round(area.position.width)} × {Math.round(area.position.height)}px
+                                    {Math.round(area.position.pdfWidth)} × {Math.round(area.position.pdfHeight)}px
                                 </Text>
                             </div>
 

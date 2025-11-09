@@ -29,8 +29,8 @@ const CanvasOverlay: React.FC<CanvasOverlayProps> = ({
                 className="selection-box"
                 style={{
                     position: 'absolute', // Changed from 'fixed'
-                    border: '2px dashed #0078d4',
-                    backgroundColor: 'rgba(0, 120, 212, 0.1)',
+                    border: '2px dashed #0078d4', // Blue color
+                    backgroundColor: 'rgba(0, 120, 212, 0.1)', // Blue with transparency
                     pointerEvents: 'none',
                     display: 'none',
                     zIndex: 1000
@@ -62,11 +62,17 @@ export interface SelectedArea {
     text: string;
     screenshot: string; // base64 image
     position: {
-        x: number;
-        y: number;
-        width: number;
-        height: number;
+        // Store PDF coordinates (in points) instead of canvas coordinates
+        pdfX: number;
+        pdfY: number;
+        pdfWidth: number;
+        pdfHeight: number;
         page: number;
+        // Optional: store the original canvas coordinates for reference
+        canvasX?: number;
+        canvasY?: number;
+        canvasWidth?: number;
+        canvasHeight?: number;
     };
     timestamp: number;
 }
@@ -144,69 +150,62 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
     }, [isSelecting, startPos, getCanvasCoordinates]);
 
     // Extract text from selected area
-    const extractTextFromArea = useCallback(async (area: { x: number; y: number; width: number; height: number; page: number }) => {
-        if (!pdfDoc) return '';
+    // Extract text from selected area using PDF coordinates
+const extractTextFromArea = useCallback(async (area: { x: number; y: number; width: number; height: number; page: number }) => {
+    if (!pdfDoc) return '';
 
-        try {
-            const page = await pdfDoc.getPage(area.page);
-            const viewport = page.getViewport({ scale: 1.0 });
+    try {
+        const page = await pdfDoc.getPage(area.page);
+        const textContent = await page.getTextContent();
+        let extractedText = '';
+
+        textContent.items.forEach((item: any) => {
+            const transform = item.transform;
             
-            // Get text content
-            const textContent = await page.getTextContent();
-            let extractedText = '';
+            // PDF text positioning - transform[4] is x, transform[5] is y
+            const textX = transform[4];
+            const textY = transform[5]; // PDF coordinate system (0,0 at bottom-left)
 
-            // Transform canvas coordinates to PDF coordinates
-            // The PDF coordinate system has (0,0) at bottom-left, while canvas has it at top-left
-            const pdfHeight = viewport.height;
-            
-            textContent.items.forEach((item: any, index: number) => {
-                const transform = item.transform;
-                
-                // PDF text positioning - transform[4] is x, transform[5] is y
-                const textX = transform[4];
-                const textY = pdfHeight - transform[5]; // Flip Y coordinate
+            // Check if text falls within the selected area
+            // Note: area coordinates are already in PDF coordinate system
+            if (textX >= area.x && textX <= area.x + area.width &&
+                textY >= area.y && textY <= area.y + area.height) {
+                extractedText += item.str + ' ';
+            }
+        });
 
-                console.log(`Text item ${index}: "${item.str}" at (${textX}, ${textY})`);
-
-                // Check if text falls within the selected area
-                // Note: PDF coordinates are in points (1/72 inch), we need to convert from canvas pixels
-                if (textX >= area.x && textX <= area.x + area.width &&
-                    textY >= area.y && textY <= area.y + area.height) {
-                    extractedText += item.str + ' ';
-                    console.log(`✓ Text "${item.str}" is within selection`);
-                }
-            });
-
-            return extractedText.trim();
-        } catch (error) {
-            console.error('Error extracting text:', error);
-            return '';
-        }
-    }, [pdfDoc]);
+        return extractedText.trim();
+    } catch (error) {
+        console.error('Error extracting text:', error);
+        return '';
+    }
+}, [pdfDoc]);
 
     // Capture screenshot of selected area
-    const captureScreenshot = useCallback((area: { x: number; y: number; width: number; height: number }) => {
-        if (!canvasRef.current) return '';
-        
-        const canvas = canvasRef.current;
-        const tempCanvas = document.createElement('canvas');
-        const ctx = tempCanvas.getContext('2d');
-        
-        if (!ctx) return '';
-        
-        tempCanvas.width = area.width;
-        tempCanvas.height = area.height;
-        
-        // Draw the selected area to temp canvas
-        ctx.drawImage(
-            canvas,
-            area.x, area.y, area.width, area.height,
-            0, 0, area.width, area.height
-        );
-        
-        return tempCanvas.toDataURL('image/png');
-    }, [canvasRef]);
+    // Capture screenshot of selected area using current canvas
+const captureScreenshot = useCallback((area: { x: number; y: number; width: number; height: number }) => {
+    if (!canvasRef.current) return '';
+    
+    const canvas = canvasRef.current;
+    const tempCanvas = document.createElement('canvas');
+    const ctx = tempCanvas.getContext('2d');
+    
+    if (!ctx) return '';
+    
+    tempCanvas.width = area.width;
+    tempCanvas.height = area.height;
+    
+    // Draw the selected area to temp canvas
+    ctx.drawImage(
+        canvas,
+        area.x, area.y, area.width, area.height,
+        0, 0, area.width, area.height
+    );
+    
+    return tempCanvas.toDataURL('image/png');
+}, [canvasRef]);
 
+    // Complete selection
     // Complete selection
     const handleMouseUp = useCallback(async () => {
         if (!isSelecting || !startPos || !currentPos || !canvasRef.current) {
@@ -219,57 +218,72 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         const canvas = canvasRef.current;
         
         // Calculate selection area in canvas coordinates
-        const x = Math.min(startPos.x, currentPos.x);
-        const y = Math.min(startPos.y, currentPos.y);
-        const width = Math.abs(currentPos.x - startPos.x);
-        const height = Math.abs(currentPos.y - startPos.y);
+        const canvasX = Math.min(startPos.x, currentPos.x);
+        const canvasY = Math.min(startPos.y, currentPos.y);
+        const canvasWidth = Math.abs(currentPos.x - startPos.x);
+        const canvasHeight = Math.abs(currentPos.y - startPos.y);
 
         // Only create selection if area is large enough
-        if (width > 10 && height > 10) {
-            const screenshot = captureScreenshot({ x, y, width, height });
+        if (canvasWidth > 10 && canvasHeight > 10) {
+            const screenshot = captureScreenshot({ x: canvasX, y: canvasY, width: canvasWidth, height: canvasHeight });
             
-            // Convert canvas coordinates to PDF coordinates
-            // We need to account for the PDF coordinate system and scale
-            const page = await pdfDoc.getPage(currentPage);
-            const pdfViewport = page.getViewport({ scale: 1.0 });
-            const canvasViewport = page.getViewport({ scale: scale, rotation: rotation });
-            
-            // Convert from canvas pixels to PDF points
-            const pdfX = (x / canvasViewport.width) * pdfViewport.width;
-            const pdfY = pdfViewport.height - ((y / canvasViewport.height) * pdfViewport.height); // Flip Y coordinate
-            const pdfWidth = (width / canvasViewport.width) * pdfViewport.width;
-            const pdfHeight = (height / canvasViewport.height) * pdfViewport.height;
+            if (!pdfDoc) {
+                console.error('PDF document not loaded');
+                return;
+            }
 
-            const text = await extractTextFromArea({
-                x: pdfX,
-                y: pdfY - pdfHeight, // Adjust Y coordinate for the selection area
-                width: pdfWidth,
-                height: pdfHeight,
-                page: currentPage
-            });
+            try {
+                const page = await pdfDoc.getPage(currentPage);
+                const pdfViewport = page.getViewport({ scale: 1.0 });
+                const canvasViewport = page.getViewport({ scale: scale, rotation: rotation });
+                
+                // Convert from canvas pixels to PDF points
+                const pdfX = (canvasX / canvasViewport.width) * pdfViewport.width;
+                const pdfY = (canvasY / canvasViewport.height) * pdfViewport.height;
+                const pdfWidth = (canvasWidth / canvasViewport.width) * pdfViewport.width;
+                const pdfHeight = (canvasHeight / canvasViewport.height) * pdfViewport.height;
 
-            const selectedArea: SelectedArea = {
-                id: `area-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
-                text: text || 'No text detected in selected area',
-                screenshot,
-                position: {
-                    x,
-                    y,
-                    width,
-                    height,
+                // For text extraction, we need to adjust Y coordinate since PDF coordinate system is flipped
+                const text = await extractTextFromArea({
+                    x: pdfX,
+                    y: pdfViewport.height - pdfY - pdfHeight, // Adjust for PDF coordinate system
+                    width: pdfWidth,
+                    height: pdfHeight,
                     page: currentPage
-                },
-                timestamp: Date.now()
-            };
+                });
 
-            onAreaSelected(selectedArea);
+                const selectedArea: SelectedArea = {
+                    id: `area-${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
+                    text: text || 'No text detected in selected area',
+                    screenshot,
+                    position: {
+                        // Store PDF coordinates (in points)
+                        pdfX,
+                        pdfY,
+                        pdfWidth,
+                        pdfHeight,
+                        page: currentPage,
+                        // Store original canvas coordinates for reference
+                        canvasX,
+                        canvasY,
+                        canvasWidth,
+                        canvasHeight
+                    },
+                    timestamp: Date.now()
+                };
+
+                onAreaSelected(selectedArea);
+            } catch (error) {
+                console.error('Error creating selected area:', error);
+            }
         }
 
         setIsSelecting(false);
         setStartPos(null);
         setCurrentPos(null);
     }, [isSelecting, startPos, currentPos, canvasRef, scale, rotation, currentPage, pdfDoc, captureScreenshot, extractTextFromArea, onAreaSelected]);
-        
+
+    // Draw selection box
     // Draw selection box
     useEffect(() => {
         if (!selectionBoxRef.current || !startPos || !currentPos || !canvasRef.current) return;
@@ -288,6 +302,16 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         box.style.height = `${height}px`;
         box.style.display = 'block';
     }, [startPos, currentPos, canvasRef]);
+
+    // Hide selection box when not selecting
+    useEffect(() => {
+        if (!selectionBoxRef.current) return;
+        
+        const box = selectionBoxRef.current;
+        if (!isSelecting) {
+            box.style.display = 'none';
+        }
+    }, [isSelecting]);
 
     // Pass handlers to parent component
     useEffect(() => {

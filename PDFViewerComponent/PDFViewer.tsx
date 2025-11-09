@@ -120,8 +120,10 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         void loadPDFJS();
     }, [loadPDFJS]);
 
+    // Update selection box rendering to convert PDF coordinates to current canvas coordinates
+    // Update selection box rendering to convert PDF coordinates to current canvas coordinates
     useEffect(() => {
-        if (!canvasRef.current || !selectionCanvasRef.current) return;
+        if (!canvasRef.current || !selectionCanvasRef.current || !pdfDoc) return;
         
         const mainCanvas = canvasRef.current;
         const selectionCanvas = selectionCanvasRef.current;
@@ -129,43 +131,51 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         
         if (!ctx) return;
         
-        // Match the selection canvas size to the main canvas
+        // Always match the selection canvas size to the main canvas
         selectionCanvas.width = mainCanvas.width;
         selectionCanvas.height = mainCanvas.height;
         
         // Clear previous drawings
         ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
         
-        // Get all selected areas for the current page
+        // Get all selected areas for the current page ONLY
         const currentPageAreas = selectedAreas.filter(area => area.position.page === pageNumber);
         
         if (currentPageAreas.length === 0) return;
         
-        // Draw all selection areas
-        currentPageAreas.forEach((area) => {
-            const isHighlighted = highlightedArea?.id === area.id;
-            
-            // Draw selection rectangle
-            ctx.strokeStyle = isHighlighted ? '#0078d4' : '#28a745';
-            ctx.lineWidth = isHighlighted ? 3 : 2;
-            ctx.setLineDash(isHighlighted ? [5, 5] : []);
-            ctx.strokeRect(
-                area.position.x,
-                area.position.y,
-                area.position.width,
-                area.position.height
-            );
+        // Convert PDF coordinates to current canvas coordinates and draw
+        const drawSelectionBoxes = async () => {
+            try {
+                const page = await pdfDoc.getPage(pageNumber);
+                const pdfViewport = page.getViewport({ scale: 1.0 });
+                const canvasViewport = page.getViewport({ scale: scale, rotation: rotation });
+                
+                currentPageAreas.forEach((area) => {
+                    // Convert PDF coordinates to current canvas coordinates
+                    const canvasX = (area.position.pdfX / pdfViewport.width) * canvasViewport.width;
+                    const canvasY = (area.position.pdfY / pdfViewport.height) * canvasViewport.height;
+                    const canvasWidth = (area.position.pdfWidth / pdfViewport.width) * canvasViewport.width;
+                    const canvasHeight = (area.position.pdfHeight / pdfViewport.height) * canvasViewport.height;
+                    
+                    const isHighlighted = highlightedArea?.id === area.id;
+                    
+                    // Draw selection rectangle - ALL BLUE now
+                    ctx.strokeStyle = isHighlighted ? '#0078d4' : '#0078d4'; // Always blue
+                    ctx.lineWidth = isHighlighted ? 3 : 2;
+                    ctx.setLineDash(isHighlighted ? [5, 5] : []);
+                    ctx.strokeRect(canvasX, canvasY, canvasWidth, canvasHeight);
 
-            // Draw semi-transparent fill
-            ctx.fillStyle = isHighlighted ? 'rgba(0, 120, 212, 0.2)' : 'rgba(40, 167, 69, 0.1)';
-            ctx.fillRect(
-                area.position.x,
-                area.position.y,
-                area.position.width,
-                area.position.height
-            );
-        });
-    }, [selectedAreas, highlightedArea, pageNumber, canvasRef]);
+                    // Draw semi-transparent fill - ALL BLUE now
+                    ctx.fillStyle = isHighlighted ? 'rgba(0, 120, 212, 0.3)' : 'rgba(0, 120, 212, 0.1)';
+                    ctx.fillRect(canvasX, canvasY, canvasWidth, canvasHeight);
+                });
+            } catch (error) {
+                console.error('Error drawing selection boxes:', error);
+            }
+        };
+        
+        drawSelectionBoxes();
+    }, [selectedAreas, highlightedArea, pageNumber, scale, rotation, pdfDoc]);
 
     // Load and render PDF
     const loadPDF = useCallback(async (file: File) => {
@@ -228,7 +238,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         if (pdfDoc && pageNumber >= 1 && pageNumber <= numPages) {
             renderPage(pdfDoc, pageNumber);
         }
-    }, [pageNumber, scale, rotation, pdfDoc, renderPage]);
+    }, [pageNumber, scale, rotation, pdfDoc, numPages, renderPage]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
