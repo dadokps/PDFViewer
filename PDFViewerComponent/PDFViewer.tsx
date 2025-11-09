@@ -60,6 +60,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
     const selectionBoxRef = useRef<HTMLDivElement>(null);
+    const selectionCanvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputId = useId('pdf-file-input');
 
     // Mouse handlers that will be passed to CanvasOverlay
@@ -119,6 +120,53 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         void loadPDFJS();
     }, [loadPDFJS]);
 
+    useEffect(() => {
+        if (!canvasRef.current || !selectionCanvasRef.current) return;
+        
+        const mainCanvas = canvasRef.current;
+        const selectionCanvas = selectionCanvasRef.current;
+        const ctx = selectionCanvas.getContext('2d');
+        
+        if (!ctx) return;
+        
+        // Match the selection canvas size to the main canvas
+        selectionCanvas.width = mainCanvas.width;
+        selectionCanvas.height = mainCanvas.height;
+        
+        // Clear previous drawings
+        ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+        
+        // Get all selected areas for the current page
+        const currentPageAreas = selectedAreas.filter(area => area.position.page === pageNumber);
+        
+        if (currentPageAreas.length === 0) return;
+        
+        // Draw all selection areas
+        currentPageAreas.forEach((area) => {
+            const isHighlighted = highlightedArea?.id === area.id;
+            
+            // Draw selection rectangle
+            ctx.strokeStyle = isHighlighted ? '#0078d4' : '#28a745';
+            ctx.lineWidth = isHighlighted ? 3 : 2;
+            ctx.setLineDash(isHighlighted ? [5, 5] : []);
+            ctx.strokeRect(
+                area.position.x,
+                area.position.y,
+                area.position.width,
+                area.position.height
+            );
+
+            // Draw semi-transparent fill
+            ctx.fillStyle = isHighlighted ? 'rgba(0, 120, 212, 0.2)' : 'rgba(40, 167, 69, 0.1)';
+            ctx.fillRect(
+                area.position.x,
+                area.position.y,
+                area.position.width,
+                area.position.height
+            );
+        });
+    }, [selectedAreas, highlightedArea, pageNumber, canvasRef]);
+
     // Load and render PDF
     const loadPDF = useCallback(async (file: File) => {
         if (!isPDFJSLoaded || !window.pdfjsLib) {
@@ -148,6 +196,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     }, [isPDFJSLoaded]);
 
     // Render specific page
+    // Render specific page
     const renderPage = useCallback(async (pdf: any, pageNum: number) => {
         if (!pdf || !canvasRef.current) return;
 
@@ -167,12 +216,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
             await page.render(renderContext).promise;
             
-            // Trigger selection area drawing after page render is complete
-            // This will ensure selection boxes are drawn on top of the PDF
-            setTimeout(() => {
-                // Force a re-render of the selection areas
-                setSelectedAreas(prev => [...prev]);
-            }, 0);
+            // No need to force re-render here anymore
         } catch (err) {
             console.error('Error rendering page:', err);
             setError('Error displaying PDF page.');
@@ -368,7 +412,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                                 highlightedArea={highlightedArea}
                                 selectionBoxRef={selectionBoxRef}
                                 onHandlersReady={updateMouseHandlers}
-                                selectedAreas={selectedAreas}
                             />
                         </ToolbarGroup>
 
@@ -491,6 +534,17 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                                         <canvas 
                                             ref={canvasRef} 
                                             className="pdf-canvas"
+                                        />
+                                        {/* Add overlay canvas for selection boxes */}
+                                        <canvas
+                                            ref={selectionCanvasRef}
+                                            style={{
+                                                position: 'absolute',
+                                                top: 0,
+                                                left: 0,
+                                                pointerEvents: 'none',
+                                                zIndex: 2
+                                            }}
                                         />
                                         {/* CanvasOverlay with real mouse handlers */}
                                         {isSelectionMode && (

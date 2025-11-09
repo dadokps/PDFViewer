@@ -87,7 +87,6 @@ interface AreaSelectionToolProps {
         handleMouseMove: (e: React.MouseEvent) => void;
         handleMouseUp: () => void;
     }) => void;
-    selectedAreas: SelectedArea[];
 }
 
 export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
@@ -101,8 +100,7 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
     onSelectionModeChange,
     highlightedArea,
     selectionBoxRef,
-    onHandlersReady,
-    selectedAreas
+    onHandlersReady
 }) => {
     const [isSelecting, setIsSelecting] = useState<boolean>(false);
     const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
@@ -290,55 +288,6 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         box.style.height = `${height}px`;
         box.style.display = 'block';
     }, [startPos, currentPos, canvasRef]);
-
-    // Draw all selected areas for current page
-    useEffect(() => {
-        if (!canvasRef.current) return;
-
-        const canvas = canvasRef.current;
-        const ctx = canvas.getContext('2d');
-        if (!ctx) return;
-
-        const drawAllSelectionAreas = () => {
-            // Get all selected areas for the current page
-            const currentPageAreas = selectedAreas.filter(area => area.position.page === currentPage);
-            
-            if (currentPageAreas.length === 0) return;
-
-            // Save current canvas state
-            ctx.save();
-
-            currentPageAreas.forEach((area) => {
-                const isHighlighted = highlightedArea?.id === area.id;
-                
-                // Draw selection rectangle
-                ctx.strokeStyle = isHighlighted ? '#0078d4' : '#28a745'; // Different color for highlighted vs normal
-                ctx.lineWidth = isHighlighted ? 3 : 2;
-                ctx.setLineDash(isHighlighted ? [5, 5] : []);
-                ctx.strokeRect(
-                    area.position.x,
-                    area.position.y,
-                    area.position.width,
-                    area.position.height
-                );
-
-                // Draw semi-transparent fill
-                ctx.fillStyle = isHighlighted ? 'rgba(0, 120, 212, 0.2)' : 'rgba(40, 167, 69, 0.1)';
-                ctx.fillRect(
-                    area.position.x,
-                    area.position.y,
-                    area.position.width,
-                    area.position.height
-                );
-            });
-
-            // Restore canvas state
-            ctx.restore();
-        };
-
-        // Use requestAnimationFrame to ensure we draw after the PDF has finished rendering
-        requestAnimationFrame(drawAllSelectionAreas);
-    }, [selectedAreas, highlightedArea, currentPage, canvasRef]);
 
     // Pass handlers to parent component
     useEffect(() => {
