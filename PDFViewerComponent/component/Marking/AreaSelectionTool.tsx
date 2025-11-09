@@ -21,37 +21,13 @@ const CanvasOverlay: React.FC<CanvasOverlayProps> = ({
     onMouseMove,
     onMouseUp
 }) => {
-    const [canvasRect, setCanvasRect] = useState<DOMRect | null>(null);
-
-    // Update canvas position on mount and resize
-    useEffect(() => {
-        if (!canvasRef.current) return;
-
-        const updateCanvasRect = () => {
-            if (canvasRef.current) {
-                setCanvasRect(canvasRef.current.getBoundingClientRect());
-            }
-        };
-
-        updateCanvasRect();
-        window.addEventListener('resize', updateCanvasRect);
-        window.addEventListener('scroll', updateCanvasRect);
-
-        return () => {
-            window.removeEventListener('resize', updateCanvasRect);
-            window.removeEventListener('scroll', updateCanvasRect);
-        };
-    }, [canvasRef.current]);
-
-    if (!canvasRect) return null;
-
     return (
         <>
             <div
                 ref={selectionBoxRef}
                 className="selection-box"
                 style={{
-                    position: 'fixed',
+                    position: 'absolute', // Changed from 'fixed'
                     border: '2px dashed #0078d4',
                     backgroundColor: 'rgba(0, 120, 212, 0.1)',
                     pointerEvents: 'none',
@@ -62,11 +38,11 @@ const CanvasOverlay: React.FC<CanvasOverlayProps> = ({
             <div
                 className="selection-overlay"
                 style={{
-                    position: 'fixed',
-                    top: `${canvasRect.top}px`,
-                    left: `${canvasRect.left}px`,
-                    width: `${canvasRect.width}px`,
-                    height: `${canvasRect.height}px`,
+                    position: 'absolute', // Changed from 'fixed'
+                    top: '0',
+                    left: '0',
+                    width: '100%',
+                    height: '100%',
                     cursor: 'crosshair',
                     zIndex: 999,
                     background: 'transparent'
@@ -104,6 +80,12 @@ interface AreaSelectionToolProps {
     isSelectionMode: boolean;
     onSelectionModeChange: (enabled: boolean) => void;
     highlightedArea?: SelectedArea | null;
+    selectionBoxRef: React.RefObject<HTMLDivElement>;
+    onHandlersReady: (handlers: {
+        handleMouseDown: (e: React.MouseEvent) => void;
+        handleMouseMove: (e: React.MouseEvent) => void;
+        handleMouseUp: () => void;
+    }) => void; // ADD THIS
 }
 
 export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
@@ -115,12 +97,13 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
     onAreaSelected,
     isSelectionMode,
     onSelectionModeChange,
-    highlightedArea
+    highlightedArea,
+    selectionBoxRef,
+    onHandlersReady
 }) => {
     const [isSelecting, setIsSelecting] = useState<boolean>(false);
     const [startPos, setStartPos] = useState<{ x: number; y: number } | null>(null);
     const [currentPos, setCurrentPos] = useState<{ x: number; y: number } | null>(null);
-    const selectionBoxRef = useRef<HTMLDivElement>(null);
 
     // Handle selection mode toggle
     const toggleSelectionMode = useCallback(() => {
@@ -286,13 +269,10 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         setCurrentPos(null);
     }, [isSelecting, startPos, currentPos, canvasRef, scale, rotation, currentPage, pdfDoc, captureScreenshot, extractTextFromArea, onAreaSelected]);
         
-// Draw selection box
+    // Draw selection box
     useEffect(() => {
         if (!selectionBoxRef.current || !startPos || !currentPos || !canvasRef.current) return;
 
-        const canvas = canvasRef.current;
-        const rect = canvas.getBoundingClientRect();
-        
         const x = Math.min(startPos.x, currentPos.x);
         const y = Math.min(startPos.y, currentPos.y);
         const width = Math.abs(currentPos.x - startPos.x);
@@ -300,9 +280,9 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
 
         const box = selectionBoxRef.current;
         
-        // Position the selection box relative to the viewport (fixed positioning)
-        box.style.left = `${rect.left + x}px`;
-        box.style.top = `${rect.top + y}px`;
+        // Position the selection box relative to the canvas (absolute positioning)
+        box.style.left = `${x}px`;
+        box.style.top = `${y}px`;
         box.style.width = `${width}px`;
         box.style.height = `${height}px`;
         box.style.display = 'block';
@@ -343,53 +323,53 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         ctx.restore();
     }, [highlightedArea, currentPage, canvasRef]);
 
+    // Pass handlers to parent component
+    useEffect(() => {
+        onHandlersReady({
+            handleMouseDown,
+            handleMouseMove,
+            handleMouseUp
+        });
+    }, [handleMouseDown, handleMouseMove, handleMouseUp, onHandlersReady]);
+
         return (
-    <div className="area-selection-tool">
-        {/* Selection Mode Toggle */}
-        <Tooltip content={isSelectionMode ? "Exit selection mode" : "Enter selection mode"} relationship="label">
-            <Button
-                appearance={isSelectionMode ? "primary" : "secondary"}
-                onClick={toggleSelectionMode}
-                size="small"
-            >
-                {isSelectionMode ? "✔ Selection Mode" : "📐 Select Areas"}
-            </Button>
-        </Tooltip>
+        <div className="area-selection-tool">
+            {/* Selection Mode Toggle */}
+            <Tooltip content={isSelectionMode ? "Exit selection mode" : "Enter selection mode"} relationship="label">
+                <Button
+                    appearance={isSelectionMode ? "primary" : "secondary"}
+                    onClick={toggleSelectionMode}
+                    size="small"
+                >
+                    {isSelectionMode ? "✔ Selection Mode" : "📐 Select Areas"}
+                </Button>
+            </Tooltip>
 
-        {/* Selection Box and Overlay - These will be positioned over the canvas */}
-        {isSelectionMode && canvasRef.current && (
-            <CanvasOverlay
-                canvasRef={canvasRef}
-                selectionBoxRef={selectionBoxRef}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-            />
-        )}
-
-        <style>{`
-            .area-selection-tool {
-                position: relative;
-                display: flex;
-                align-items: center;
-            }
-
-            .selection-box {
-                transition: all 0.1s ease;
-            }
-
-            .selection-overlay {
-                background: transparent;
-            }
-
-            @media (max-width: 768px) {
+            <style>{`
                 .area-selection-tool {
-                    flex-direction: column;
-                    align-items: flex-start;
-                    gap: 8px;
+                    position: relative;
+                    display: flex;
+                    align-items: center;
                 }
-            }
-        `}</style>
-    </div>
-);
+
+                .selection-box {
+                    transition: all 0.1s ease;
+                }
+
+                .selection-overlay {
+                    background: transparent;
+                }
+
+                @media (max-width: 768px) {
+                    .area-selection-tool {
+                        flex-direction: column;
+                        align-items: flex-start;
+                        gap: 8px;
+                    }
+                }
+            `}</style>
+        </div>
+    );
 };
+
+export { CanvasOverlay };

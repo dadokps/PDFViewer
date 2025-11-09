@@ -15,7 +15,7 @@ import {
     Option,
     Field
 } from '@fluentui/react-components';
-import { AreaSelectionTool, SelectedArea } from './component/Marking/AreaSelectionTool';
+import { AreaSelectionTool, SelectedArea, CanvasOverlay } from './component/Marking/AreaSelectionTool';
 import {  SelectedAreasList } from './component/Marking/SelectedAreasList';
 import './css/PDFViewer.css';
 
@@ -59,7 +59,28 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     
     const fileInputRef = useRef<HTMLInputElement>(null);
     const canvasRef = useRef<HTMLCanvasElement>(null);
+    const selectionBoxRef = useRef<HTMLDivElement>(null);
     const fileInputId = useId('pdf-file-input');
+
+    // Mouse handlers that will be passed to CanvasOverlay
+    const [mouseHandlers, setMouseHandlers] = useState<{
+        handleMouseDown: (e: React.MouseEvent) => void;
+        handleMouseMove: (e: React.MouseEvent) => void;
+        handleMouseUp: () => void;
+    }>({
+        handleMouseDown: () => {},
+        handleMouseMove: () => {},
+        handleMouseUp: () => {}
+    });
+
+    // Update mouse handlers when AreaSelectionTool provides them
+    const updateMouseHandlers = useCallback((handlers: {
+        handleMouseDown: (e: React.MouseEvent) => void;
+        handleMouseMove: (e: React.MouseEvent) => void;
+        handleMouseUp: () => void;
+    }) => {
+        setMouseHandlers(handlers);
+    }, []);
 
     // Responsive behavior based on allocated dimensions
     const isMobile = allocatedWidth < 768;
@@ -338,6 +359,8 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                                 isSelectionMode={isSelectionMode}
                                 onSelectionModeChange={setIsSelectionMode}
                                 highlightedArea={highlightedArea}
+                                selectionBoxRef={selectionBoxRef}
+                                onHandlersReady={updateMouseHandlers}
                             />
                         </ToolbarGroup>
 
@@ -451,14 +474,27 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
                             {!loading && !error && pdfDoc && (
                                 <div className="pdf-document-container">
-                                    <canvas 
-                                        ref={canvasRef} 
-                                        className="pdf-canvas"
-                                        style={{
-                                            transform: `rotate(${rotation}deg)`,
-                                            transition: 'transform 0.3s ease'
-                                        }}
-                                    />
+                                    <div style={{ 
+                                        position: 'relative', 
+                                        display: 'inline-block',
+                                        transform: `rotate(${rotation}deg)`,
+                                        transition: 'transform 0.3s ease'
+                                    }}>
+                                        <canvas 
+                                            ref={canvasRef} 
+                                            className="pdf-canvas"
+                                        />
+                                        {/* CanvasOverlay with real mouse handlers */}
+                                        {isSelectionMode && (
+                                            <CanvasOverlay
+                                                canvasRef={canvasRef}
+                                                selectionBoxRef={selectionBoxRef}
+                                                onMouseDown={mouseHandlers.handleMouseDown}
+                                                onMouseMove={mouseHandlers.handleMouseMove}
+                                                onMouseUp={mouseHandlers.handleMouseUp}
+                                            />
+                                        )}
+                                    </div>
                                 </div>
                             )}
                         </div>
