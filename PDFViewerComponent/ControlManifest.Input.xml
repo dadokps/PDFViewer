@@ -27,7 +27,7 @@
       <code path="index.ts" order="1"/>
       <css path="css/PDFViewer.css" order="1" />
       <platform-library name="React" version="16.14.0" />
-      <platform-library name="Fluent" version="9.68.0" />
+      <platform-library name="Fluent" version="9.33.0" />
     </resources>
 
     <!-- REQUIRED FEATURE USAGES -->

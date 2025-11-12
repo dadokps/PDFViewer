@@ -121,7 +121,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     }, [loadPDFJS]);
 
     // Update selection box rendering to convert PDF coordinates to current canvas coordinates
-    // Update selection box rendering to convert PDF coordinates to current canvas coordinates
     useEffect(() => {
         if (!canvasRef.current || !selectionCanvasRef.current || !pdfDoc) return;
         
@@ -131,41 +130,41 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         
         if (!ctx) return;
         
-        // Always match the selection canvas size to the main canvas
-        selectionCanvas.width = mainCanvas.width;
-        selectionCanvas.height = mainCanvas.height;
-        
-        // Clear previous drawings
-        ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
-        
-        // Get all selected areas for the current page ONLY
-        const currentPageAreas = selectedAreas.filter(area => area.position.page === pageNumber);
-        
-        if (currentPageAreas.length === 0) return;
-        
-        // Convert PDF coordinates to current canvas coordinates and draw
         const drawSelectionBoxes = async () => {
             try {
                 const page = await pdfDoc.getPage(pageNumber);
                 const pdfViewport = page.getViewport({ scale: 1.0 });
-                const canvasViewport = page.getViewport({ scale: scale, rotation: rotation });
+                const currentViewport = page.getViewport({ scale: scale, rotation: rotation });
+                
+                // Match selection canvas size to main canvas
+                selectionCanvas.width = mainCanvas.width;
+                selectionCanvas.height = mainCanvas.height;
+                
+                // Clear previous drawings
+                ctx.clearRect(0, 0, selectionCanvas.width, selectionCanvas.height);
+                
+                // Get all selected areas for the current page ONLY
+                const currentPageAreas = selectedAreas.filter(area => area.position.page === pageNumber);
+                
+                if (currentPageAreas.length === 0) return;
                 
                 currentPageAreas.forEach((area) => {
-                    // Convert PDF coordinates to current canvas coordinates
-                    const canvasX = (area.position.pdfX / pdfViewport.width) * canvasViewport.width;
-                    const canvasY = (area.position.pdfY / pdfViewport.height) * canvasViewport.height;
-                    const canvasWidth = (area.position.pdfWidth / pdfViewport.width) * canvasViewport.width;
-                    const canvasHeight = (area.position.pdfHeight / pdfViewport.height) * canvasViewport.height;
+                    // Convert stored PDF coordinates to current canvas coordinates
+                    // This ensures the boxes stay in the correct position regardless of screen size
+                    const canvasX = (area.position.pdfX / pdfViewport.width) * currentViewport.width;
+                    const canvasY = (area.position.pdfY / pdfViewport.height) * currentViewport.height;
+                    const canvasWidth = (area.position.pdfWidth / pdfViewport.width) * currentViewport.width;
+                    const canvasHeight = (area.position.pdfHeight / pdfViewport.height) * currentViewport.height;
                     
                     const isHighlighted = highlightedArea?.id === area.id;
                     
-                    // Draw selection rectangle - ALL BLUE now
-                    ctx.strokeStyle = isHighlighted ? '#0078d4' : '#0078d4'; // Always blue
+                    // Draw selection rectangle
+                    ctx.strokeStyle = isHighlighted ? '#0078d4' : '#0078d4';
                     ctx.lineWidth = isHighlighted ? 3 : 2;
                     ctx.setLineDash(isHighlighted ? [5, 5] : []);
                     ctx.strokeRect(canvasX, canvasY, canvasWidth, canvasHeight);
 
-                    // Draw semi-transparent fill - ALL BLUE now
+                    // Draw semi-transparent fill
                     ctx.fillStyle = isHighlighted ? 'rgba(0, 120, 212, 0.3)' : 'rgba(0, 120, 212, 0.1)';
                     ctx.fillRect(canvasX, canvasY, canvasWidth, canvasHeight);
                 });
@@ -206,7 +205,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     }, [isPDFJSLoaded]);
 
     // Render specific page
-    // Render specific page
     const renderPage = useCallback(async (pdf: any, pageNum: number) => {
         if (!pdf || !canvasRef.current) return;
 
@@ -239,6 +237,25 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             renderPage(pdfDoc, pageNumber);
         }
     }, [pageNumber, scale, rotation, pdfDoc, numPages, renderPage]);
+
+    useEffect(() => {
+        if (!pdfDoc) return;
+
+        const handleResize = () => {
+            // Force re-render of selection boxes when window resizes
+            if (pdfDoc && pageNumber >= 1 && pageNumber <= numPages) {
+                // This will trigger the selection box effect above
+                const event = new Event('resize');
+                window.dispatchEvent(event);
+            }
+        };
+
+        window.addEventListener('resize', handleResize);
+        
+        return () => {
+            window.removeEventListener('resize', handleResize);
+        };
+    }, [pdfDoc, pageNumber, numPages]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
@@ -310,36 +327,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 };
             }
         }
-    };
-
-    const renderThumbnails = () => {
-        if (!showThumbnails || numPages <= 1) return null;
-
-        return (
-            <div className={`thumbnail-sidebar ${isThumbnailsOpen ? 'open' : 'closed'}`}>
-                <div className="thumbnail-header">
-                    <Text weight="semibold">Pages</Text>
-                    <Button 
-                        size="small" 
-                        appearance="subtle"
-                        onClick={() => setIsThumbnailsOpen(!isThumbnailsOpen)}
-                    >
-                        {isThumbnailsOpen ? 'Hide' : 'Show'}
-                    </Button>
-                </div>
-                <div className="thumbnail-list">
-                    {Array.from(new Array(numPages), (el, index) => (
-                        <div
-                            key={`thumbnail_${index + 1}`}
-                            className={`thumbnail ${pageNumber === index + 1 ? 'active' : ''}`}
-                            onClick={() => setPageNumber(index + 1)}
-                        >
-                            <Text size={200}>Page {index + 1}</Text>
-                        </div>
-                    ))}
-                </div>
-            </div>
-        );
     };
 
     // Marking related handlers
@@ -514,9 +501,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                     </Toolbar>
 
                     {/* PDF Content Area */}
-                    <div className="pdf-content-area">
-                        {renderThumbnails()}
-                        
+                    <div className="pdf-content-area">                       
                         <div className="pdf-main-content">
                             {loading && (
                                 <div className="loading-container">

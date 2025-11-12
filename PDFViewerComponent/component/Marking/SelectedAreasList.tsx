@@ -2,20 +2,29 @@ import * as React from 'react';
 import { 
     Button,
     Text,
-    List,
-    ListItem,
-    Avatar,
     Dialog,
-    DialogTrigger,
     DialogSurface,
     DialogTitle,
     DialogBody,
     DialogActions,
     DialogContent,
-    Tooltip
+    Tooltip,
+    Badge,
+    Card,
+    CardHeader,
+    Caption1,
+    Body1,
+    Subtitle2
 } from '@fluentui/react-components';
-import { Dismiss20Regular, ArrowExpand20Regular } from '@fluentui/react-icons';
+import { 
+    Dismiss20Regular, 
+    ArrowExpand20Regular, 
+    Document20Regular,
+    ChevronLeft20Regular,
+    ChevronRight20Regular
+} from '@fluentui/react-icons';
 import { SelectedArea } from './AreaSelectionTool';
+import '../../css/SelectedAreaList.css';
 
 interface SelectedAreasListProps {
     selectedAreas: SelectedArea[];
@@ -24,6 +33,8 @@ interface SelectedAreasListProps {
     onClearAll: () => void;
     highlightedArea?: SelectedArea | null;
 }
+
+const ITEMS_PER_PAGE = 5;
 
 export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
     selectedAreas,
@@ -34,16 +45,30 @@ export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
 }) => {
     const [previewImage, setPreviewImage] = React.useState<string | null>(null);
     const [isPreviewOpen, setIsPreviewOpen] = React.useState<boolean>(false);
+    const [currentPage, setCurrentPage] = React.useState<number>(1);
+
+    // Calculate pagination
+    const totalPages = Math.ceil(selectedAreas.length / ITEMS_PER_PAGE);
+    const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
+    const currentAreas = selectedAreas.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+
+    React.useEffect(() => {
+        // Reset to first page when areas change significantly
+        if (currentPage > totalPages && totalPages > 0) {
+            setCurrentPage(totalPages);
+        } else if (currentPage < 1 && selectedAreas.length > 0) {
+            setCurrentPage(1);
+        }
+    }, [selectedAreas.length, currentPage, totalPages]);
 
     const handleAreaClick = React.useCallback((area: SelectedArea) => {
-        onAreaHighlight(area);
-    }, [onAreaHighlight]);
+        onAreaHighlight(area === highlightedArea ? null : area);
+    }, [onAreaHighlight, highlightedArea]);
 
     const handleAreaRemove = React.useCallback((areaId: string, event: React.MouseEvent) => {
         event.stopPropagation();
         onAreaRemove(areaId);
         
-        // If the removed area was highlighted, clear highlight
         if (highlightedArea?.id === areaId) {
             onAreaHighlight(null);
         }
@@ -58,24 +83,47 @@ export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
     const handleClearAll = React.useCallback(() => {
         onClearAll();
         onAreaHighlight(null);
+        setCurrentPage(1);
     }, [onClearAll, onAreaHighlight]);
 
+    const goToPreviousPage = React.useCallback(() => {
+        setCurrentPage(prev => Math.max(prev - 1, 1));
+    }, []);
+
+    const goToNextPage = React.useCallback(() => {
+        setCurrentPage(prev => Math.min(prev + 1, totalPages));
+    }, [totalPages]);
+
     const formatTimestamp = React.useCallback((timestamp: number) => {
-        return new Date(timestamp).toLocaleTimeString();
+        return new Date(timestamp).toLocaleTimeString('en-US', {
+            hour: '2-digit',
+            minute: '2-digit',
+            hour12: true
+        });
+    }, []);
+
+    const formatDate = React.useCallback((timestamp: number) => {
+        return new Date(timestamp).toLocaleDateString('en-US', {
+            month: 'short',
+            day: 'numeric'
+        });
     }, []);
 
     const truncateText = React.useCallback((text: string, maxLength: number = 100) => {
-        if (text.length <= maxLength) return text;
-        return text.substring(0, maxLength) + '...';
+        if (!text || text.length <= maxLength) return text;
+        return text.substring(0, maxLength).trim() + '...';
     }, []);
 
     if (selectedAreas.length === 0) {
         return (
             <div className="selected-areas-list empty">
-                <Text size={400} style={{ textAlign: 'center', color: '#605e5c' }}>
-                    No areas selected yet. <br />
-                    Use the selection tool to mark areas on the PDF.
-                </Text>
+                <Document20Regular className="empty-icon" />
+                <Body1 align="center" className="empty-title">
+                    No areas selected yet
+                </Body1>
+                <Caption1 align="center" className="empty-description">
+                    Use the selection tool to mark areas on the PDF
+                </Caption1>
             </div>
         );
     }
@@ -84,72 +132,105 @@ export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
         <div className="selected-areas-list">
             {/* Header */}
             <div className="list-header">
-                <Text size={500} weight="semibold">
-                    Selected Areas ({selectedAreas.length})
-                </Text>
+                <div className="list-title">
+                    <Subtitle2>Selected Areas</Subtitle2>
+                    <Badge appearance="filled" color="brand" className="items-count">
+                        {selectedAreas.length}
+                    </Badge>
+                </div>
                 <Button
                     appearance="subtle"
                     size="small"
                     onClick={handleClearAll}
-                    disabled={selectedAreas.length === 0}
                 >
                     Clear All
                 </Button>
             </div>
 
             {/* Areas List */}
-            <List className="areas-list">
-                {selectedAreas.map((area) => (
-                    <ListItem
+            <div className="areas-list-container">
+                {currentAreas.map((area) => (
+                    <Card
                         key={area.id}
                         className={`area-item ${highlightedArea?.id === area.id ? 'highlighted' : ''}`}
                         onClick={() => handleAreaClick(area)}
                     >
                         <div className="area-content">
-                            {/* Screenshot Thumbnail */}
-                            <Avatar
-                                className="area-thumbnail"
-                                image={{ src: area.screenshot }}
-                                size={48}
-                                shape="square"
-                            />
-                            
                             {/* Area Details */}
                             <div className="area-details">
-                                <Text size={300} weight="semibold">
-                                    Page {area.position.page} • {formatTimestamp(area.timestamp)}
-                                </Text>
-                                <Text size={200} className="area-text">
+                                <div className="area-meta">
+                                    <Badge appearance="outline" color="informative" size="small">
+                                        Page {area.position.page}
+                                    </Badge>
+                                    <Caption1 className="area-time">
+                                        {formatDate(area.timestamp)} • {formatTimestamp(area.timestamp)}
+                                    </Caption1>
+                                </div>
+                                
+                                <Body1 className="area-text">
                                     {truncateText(area.text)}
-                                </Text>
-                                <Text size={100} className="area-dimensions">
-                                    {Math.round(area.position.pdfWidth)} × {Math.round(area.position.pdfHeight)}px
-                                </Text>
-                            </div>
-
-                            {/* Actions */}
-                            <div className="area-actions">
-                                <Tooltip content="Preview screenshot" relationship="label">
-                                    <Button
-                                        size="small"
-                                        appearance="subtle"
-                                        icon={<ArrowExpand20Regular />}
-                                        onClick={(e) => handlePreviewScreenshot(area.screenshot, e)}
-                                    />
-                                </Tooltip>
-                                <Tooltip content="Remove area" relationship="label">
-                                    <Button
-                                        size="small"
-                                        appearance="subtle"
-                                        icon={<Dismiss20Regular />}
-                                        onClick={(e) => handleAreaRemove(area.id, e)}
-                                    />
-                                </Tooltip>
+                                </Body1>
+                                
+                                <div className="area-footer">
+                                    <div className="area-info">
+                                        <img
+                                            src={area.screenshot}
+                                            alt="Selected area"
+                                            className="area-thumbnail"
+                                        />
+                                        <Caption1 className="area-dimensions">
+                                            {Math.round(area.position.pdfWidth)} × {Math.round(area.position.pdfHeight)}px
+                                        </Caption1>
+                                    </div>
+                                    <div className="area-actions">
+                                        <Tooltip content="Preview screenshot" relationship="label">
+                                            <Button
+                                                size="small"
+                                                appearance="subtle"
+                                                icon={<ArrowExpand20Regular />}
+                                                onClick={(e) => handlePreviewScreenshot(area.screenshot, e)}
+                                            />
+                                        </Tooltip>
+                                        <Tooltip content="Remove area" relationship="label">
+                                            <Button
+                                                size="small"
+                                                appearance="subtle"
+                                                icon={<Dismiss20Regular />}
+                                                onClick={(e) => handleAreaRemove(area.id, e)}
+                                            />
+                                        </Tooltip>
+                                    </div>
+                                </div>
                             </div>
                         </div>
-                    </ListItem>
+                    </Card>
                 ))}
-            </List>
+            </div>
+
+            {/* Pagination - Simple and Clean */}
+            {totalPages > 1 && (
+                <div className="pagination-container">
+                    <Caption1 className="pagination-info">
+                        Page {currentPage} of {totalPages}
+                    </Caption1>
+                    <div className="pagination-controls">
+                        <Button
+                            size="small"
+                            appearance="subtle"
+                            icon={<ChevronLeft20Regular />}
+                            onClick={goToPreviousPage}
+                            disabled={currentPage <= 1}
+                        />
+                        <Button
+                            size="small"
+                            appearance="subtle"
+                            icon={<ChevronRight20Regular />}
+                            onClick={goToNextPage}
+                            disabled={currentPage >= totalPages}
+                        />
+                    </div>
+                </div>
+            )}
 
             {/* Screenshot Preview Dialog */}
             <Dialog open={isPreviewOpen} onOpenChange={(_, data) => setIsPreviewOpen(data.open)}>
@@ -161,12 +242,7 @@ export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
                                 <img
                                     src={previewImage}
                                     alt="Selected area screenshot"
-                                    style={{
-                                        maxWidth: '100%',
-                                        maxHeight: '400px',
-                                        border: '1px solid #e1e1e1',
-                                        borderRadius: '4px'
-                                    }}
+                                    className="preview-image"
                                 />
                             )}
                         </DialogContent>
@@ -178,144 +254,6 @@ export const SelectedAreasList: React.FC<SelectedAreasListProps> = ({
                     </DialogBody>
                 </DialogSurface>
             </Dialog>
-
-            <style>{`
-                .selected-areas-list {
-                    border: 1px solid #e1e1e1;
-                    border-radius: 8px;
-                    background-color: white;
-                    max-height: 400px;
-                    display: flex;
-                    flex-direction: column;
-                }
-
-                .selected-areas-list.empty {
-                    padding: 40px 20px;
-                    text-align: center;
-                    background-color: #f8f9fa;
-                }
-
-                .list-header {
-                    display: flex;
-                    justify-content: space-between;
-                    align-items: center;
-                    padding: 12px 16px;
-                    border-bottom: 1px solid #e1e1e1;
-                    background-color: #f8f9f8;
-                }
-
-                .areas-list {
-                    flex: 1;
-                    overflow-y: auto;
-                    padding: 8px;
-                }
-
-                .area-item {
-                    padding: 12px;
-                    margin-bottom: 8px;
-                    border: 1px solid #e1e1e1;
-                    border-radius: 6px;
-                    cursor: pointer;
-                    transition: all 0.2s ease;
-                    background-color: white;
-                }
-
-                .area-item:hover {
-                    border-color: #0078d4;
-                    background-color: #f8f9fa;
-                }
-
-                .area-item.highlighted {
-                    border-color: #0078d4;
-                    background-color: #e1f0ff;
-                    box-shadow: 0 0 0 1px #0078d4;
-                }
-
-                .area-content {
-                    display: flex;
-                    align-items: flex-start;
-                    gap: 12px;
-                    width: 100%;
-                }
-
-                .area-thumbnail {
-                    flex-shrink: 0;
-                    border: 1px solid #e1e1e1;
-                }
-
-                .area-details {
-                    flex: 1;
-                    min-width: 0;
-                }
-
-                .area-text {
-                    color: #323130;
-                    margin: 4px 0;
-                    word-wrap: break-word;
-                }
-
-                .area-dimensions {
-                    color: #605e5c;
-                }
-
-                .area-actions {
-                    display: flex;
-                    gap: 4px;
-                    flex-shrink: 0;
-                }
-
-                /* Responsive Design */
-                @media (max-width: 768px) {
-                    .selected-areas-list {
-                        max-height: 300px;
-                    }
-
-                    .area-content {
-                        flex-direction: column;
-                        align-items: stretch;
-                    }
-
-                    .area-thumbnail {
-                        align-self: center;
-                    }
-
-                    .area-actions {
-                        align-self: flex-end;
-                        margin-top: 8px;
-                    }
-                }
-
-                @media (max-width: 480px) {
-                    .list-header {
-                        flex-direction: column;
-                        gap: 8px;
-                        align-items: flex-start;
-                    }
-
-                    .area-item {
-                        padding: 8px;
-                    }
-                }
-
-                /* Scrollbar styling */
-                .areas-list::-webkit-scrollbar {
-                    width: 6px;
-                }
-
-                .areas-list::-webkit-scrollbar-track {
-                    background: #f1f1f1;
-                    border-radius: 3px;
-                }
-
-                .areas-list::-webkit-scrollbar-thumb {
-                    background: #c1c1c1;
-                    border-radius: 3px;
-                }
-
-                .areas-list::-webkit-scrollbar-thumb:hover {
-                    background: #a1a1a1;
-                }
-            `}</style>
         </div>
     );
 };
