@@ -17,6 +17,7 @@ import {
 } from '@fluentui/react-components';
 import { AreaSelectionTool, SelectedArea, CanvasOverlay } from './component/Marking/AreaSelectionTool';
 import {  SelectedAreasList } from './component/Marking/SelectedAreasList';
+import { WeatherWidget } from './component/Weather/WeatherWidget';
 import './css/PDFViewer.css';
 
 // Declare pdfjsLib in global scope
@@ -348,6 +349,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
 
     return (
         <div className="virtual-pdf-viewer">
+            <WeatherWidget />
             {/* Hidden file input */}
             <input
                 id={fileInputId}
