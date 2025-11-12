@@ -47,8 +47,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const [scale, setScale] = useState<number>(1.0);
     const [loading, setLoading] = useState<boolean>(false);
     const [error, setError] = useState<string>('');
-    const [rotation, setRotation] = useState<number>(0);
-    const [isThumbnailsOpen, setIsThumbnailsOpen] = useState<boolean>(true);
     const [file, setFile] = useState<File | null>(null);
     const [pdfDoc, setPdfDoc] = useState<any>(null);
     const [isPDFJSLoaded, setIsPDFJSLoaded] = useState<boolean>(false);
@@ -63,6 +61,9 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const selectionBoxRef = useRef<HTMLDivElement>(null);
     const selectionCanvasRef = useRef<HTMLCanvasElement>(null);
     const fileInputId = useId('pdf-file-input');
+    
+    // Add a ref to track the current render task
+    const renderTaskRef = useRef<any>(null);
 
     // Mouse handlers that will be passed to CanvasOverlay
     const [mouseHandlers, setMouseHandlers] = useState<{
@@ -121,7 +122,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         void loadPDFJS();
     }, [loadPDFJS]);
 
-    // Update selection box rendering to handle responsive scaling
+    // Update selection box rendering to handle responsive scaling - KEEP THIS FIX
     useEffect(() => {
         if (!canvasRef.current || !selectionCanvasRef.current || !pdfDoc) return;
         
@@ -135,12 +136,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
             try {
                 const page = await pdfDoc.getPage(pageNumber);
                 const pdfViewport = page.getViewport({ scale: 1.0 });
-                const currentViewport = page.getViewport({ scale: scale, rotation: rotation });
-                
-                // Get the actual displayed size of the canvas (after CSS scaling)
-                const displayedRect = mainCanvas.getBoundingClientRect();
-                const scaleX = mainCanvas.width / displayedRect.width;
-                const scaleY = mainCanvas.height / displayedRect.height;
+                const currentViewport = page.getViewport({ scale: scale });
                 
                 // Match selection canvas size to main canvas
                 selectionCanvas.width = mainCanvas.width;
@@ -180,7 +176,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         };
         
         drawSelectionBoxes();
-    }, [selectedAreas, highlightedArea, pageNumber, scale, rotation, pdfDoc]);
+    }, [selectedAreas, highlightedArea, pageNumber, scale, pdfDoc]);
 
     // Load and render PDF
     const loadPDF = useCallback(async (file: File) => {
@@ -210,16 +206,40 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         }
     }, [isPDFJSLoaded]);
 
-    // Render specific page
+    // Render specific page with proper cleanup - FIXED VERSION
+    // Render specific page with proper cleanup - FIXED VERSION
     const renderPage = useCallback(async (pdf: any, pageNum: number) => {
-        if (!pdf || !canvasRef.current) return;
+        // Double-check all required elements are available
+        if (!pdf || !canvasRef.current) {
+            console.error('PDF or canvas not available for rendering');
+            return;
+        }
+
+        const canvas = canvasRef.current;
+        
+        // Additional safety check
+        if (!canvas) {
+            console.error('Canvas element is null');
+            return;
+        }
 
         try {
+            // Cancel any ongoing render task
+            if (renderTaskRef.current) {
+                renderTaskRef.current.cancel();
+                renderTaskRef.current = null;
+            }
+
             const page = await pdf.getPage(pageNum);
-            const canvas = canvasRef.current;
             const ctx = canvas.getContext('2d');
             
-            const viewport = page.getViewport({ scale: scale, rotation: rotation });
+            // Check if context is available
+            if (!ctx) {
+                console.error('Canvas context is null');
+                return;
+            }
+            
+            const viewport = page.getViewport({ scale: scale });
             canvas.width = viewport.width;
             canvas.height = viewport.height;
 
@@ -228,23 +248,36 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 viewport: viewport
             };
 
-            await page.render(renderContext).promise;
+            // Store the render task and wait for it to complete
+            renderTaskRef.current = page.render(renderContext);
+            await renderTaskRef.current.promise;
+            renderTaskRef.current = null;
             
-            // No need to force re-render here anymore
         } catch (err) {
-            console.error('Error rendering page:', err);
+            // For now, log all errors to see what's happening
+            console.error('Error in renderPage:', err);
+            
+            // Check if it's a cancellation error by inspecting the actual error
+            if (err && typeof err === 'object') {
+                const errString = JSON.stringify(err);
+                if (errString.includes('RenderingCancelled') || errString.includes('cancelled')) {
+                    console.log('Render operation was cancelled (expected)');
+                    return;
+                }
+            }
+            
             setError('Error displaying PDF page.');
         }
-    }, [scale, rotation]);
+    }, [scale]);
 
     // Re-render when page, scale, or rotation changes
     useEffect(() => {
-        if (pdfDoc && pageNumber >= 1 && pageNumber <= numPages) {
+        if (pdfDoc && pageNumber >= 1 && pageNumber <= numPages && canvasRef.current) {
             renderPage(pdfDoc, pageNumber);
         }
-    }, [pageNumber, scale, rotation, pdfDoc, numPages, renderPage]);
+    }, [pageNumber, scale, pdfDoc, numPages, renderPage]);
 
-    // Add a resize observer to handle responsive changes
+    // Add a resize observer to handle responsive changes - KEEP THIS FIX
     useEffect(() => {
         if (!canvasRef.current || !pdfDoc) return;
 
@@ -270,6 +303,16 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         };
     }, [pdfDoc, pageNumber, numPages, renderPage]);
 
+    // Cleanup on unmount
+    useEffect(() => {
+        return () => {
+            // Cancel any ongoing render task when component unmounts
+            if (renderTaskRef.current) {
+                renderTaskRef.current.cancel();
+            }
+        };
+    }, []);
+
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
         if (selectedFile && selectedFile.type === 'application/pdf') {
@@ -287,18 +330,23 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         setScale(Math.max(0.5, Math.min(fitScale, 2.0)));
     };
 
-    const goToPreviousPage = () => setPageNumber(prev => Math.max(prev - 1, 1));
-    const goToNextPage = () => setPageNumber(prev => Math.min(prev + 1, numPages));
+    const goToPreviousPage = () => {
+        if (pageNumber > 1) {
+            setPageNumber(prev => Math.max(prev - 1, 1));
+        }
+    };
+
+    const goToNextPage = () => {
+        if (pageNumber < numPages) {
+            setPageNumber(prev => Math.min(prev + 1, numPages));
+        }
+    };
 
     const handlePageInputChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const newPage = parseInt(event.target.value, 10);
         if (!isNaN(newPage) && newPage >= 1 && newPage <= numPages) {
             setPageNumber(newPage);
         }
-    };
-
-    const handleRotation = () => {
-        setRotation(prev => (prev + 90) % 360);
     };
 
     const triggerFileInput = () => fileInputRef.current?.click();
@@ -416,7 +464,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                                 pdfDoc={pdfDoc}
                                 currentPage={pageNumber}
                                 scale={scale}
-                                rotation={rotation}
                                 onAreaSelected={handleAreaSelected}
                                 isSelectionMode={isSelectionMode}
                                 onSelectionModeChange={setIsSelectionMode}
@@ -498,9 +545,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                         <ToolbarDivider />
 
                         <ToolbarGroup className="toolbar-section">
-                            <ToolbarButton onClick={handleRotation}>
-                                Rotate
-                            </ToolbarButton>
                             {enableDownload && (
                                 <ToolbarButton onClick={handleDownload}>
                                     Download
@@ -537,7 +581,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                                     <div style={{ 
                                         position: 'relative', 
                                         display: 'inline-block',
-                                        transform: `rotate(${rotation}deg)`,
                                         transition: 'transform 0.3s ease'
                                     }}>
                                         <canvas 

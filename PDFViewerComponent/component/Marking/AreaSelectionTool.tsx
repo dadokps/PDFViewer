@@ -82,7 +82,6 @@ interface AreaSelectionToolProps {
     pdfDoc: any;
     currentPage: number;
     scale: number;
-    rotation: number;
     onAreaSelected: (area: SelectedArea) => void;
     isSelectionMode: boolean;
     onSelectionModeChange: (enabled: boolean) => void;
@@ -100,7 +99,6 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
     pdfDoc,
     currentPage,
     scale,
-    rotation,
     onAreaSelected,
     isSelectionMode,
     onSelectionModeChange,
@@ -261,7 +259,7 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
             try {
                 const page = await pdfDoc.getPage(currentPage);
                 const pdfViewport = page.getViewport({ scale: 1.0 });
-                const canvasViewport = page.getViewport({ scale: scale, rotation: rotation });
+                const canvasViewport = page.getViewport({ scale: scale });
                 
                 // Convert from canvas pixels to PDF points
                 const pdfX = (canvasX / canvasViewport.width) * pdfViewport.width;
@@ -307,7 +305,7 @@ export const AreaSelectionTool: React.FC<AreaSelectionToolProps> = ({
         setIsSelecting(false);
         setStartPos(null);
         setCurrentPos(null);
-    }, [isSelecting, startPos, currentPos, canvasRef, scale, rotation, currentPage, pdfDoc, captureScreenshot, extractTextFromArea, onAreaSelected]);
+    }, [isSelecting, startPos, currentPos, canvasRef, scale, currentPage, pdfDoc, captureScreenshot, extractTextFromArea, onAreaSelected]);
 
     // Draw selection box
     useEffect(() => {
