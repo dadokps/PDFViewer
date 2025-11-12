@@ -121,7 +121,7 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         void loadPDFJS();
     }, [loadPDFJS]);
 
-    // Update selection box rendering to convert PDF coordinates to current canvas coordinates
+    // Update selection box rendering to handle responsive scaling
     useEffect(() => {
         if (!canvasRef.current || !selectionCanvasRef.current || !pdfDoc) return;
         
@@ -136,6 +136,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                 const page = await pdfDoc.getPage(pageNumber);
                 const pdfViewport = page.getViewport({ scale: 1.0 });
                 const currentViewport = page.getViewport({ scale: scale, rotation: rotation });
+                
+                // Get the actual displayed size of the canvas (after CSS scaling)
+                const displayedRect = mainCanvas.getBoundingClientRect();
+                const scaleX = mainCanvas.width / displayedRect.width;
+                const scaleY = mainCanvas.height / displayedRect.height;
                 
                 // Match selection canvas size to main canvas
                 selectionCanvas.width = mainCanvas.width;
@@ -239,24 +244,31 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
         }
     }, [pageNumber, scale, rotation, pdfDoc, numPages, renderPage]);
 
+    // Add a resize observer to handle responsive changes
     useEffect(() => {
-        if (!pdfDoc) return;
+        if (!canvasRef.current || !pdfDoc) return;
 
         const handleResize = () => {
-            // Force re-render of selection boxes when window resizes
+            // Force re-render of the current page and selection boxes when window resizes
             if (pdfDoc && pageNumber >= 1 && pageNumber <= numPages) {
-                // This will trigger the selection box effect above
-                const event = new Event('resize');
-                window.dispatchEvent(event);
+                renderPage(pdfDoc, pageNumber);
             }
         };
 
+        // Use ResizeObserver for better performance than listening to window resize
+        const resizeObserver = new ResizeObserver(handleResize);
+        if (canvasRef.current) {
+            resizeObserver.observe(canvasRef.current);
+        }
+
+        // Also listen to window resize for additional safety
         window.addEventListener('resize', handleResize);
         
         return () => {
+            resizeObserver.disconnect();
             window.removeEventListener('resize', handleResize);
         };
-    }, [pdfDoc, pageNumber, numPages]);
+    }, [pdfDoc, pageNumber, numPages, renderPage]);
 
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];

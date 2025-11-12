@@ -127,11 +127,13 @@
     position: relative;
     width: 100%;
     height: 100%;
+    overflow: auto;
 }
 
 .pdf-document-container > div {
     position: relative;
     display: inline-block;
+    max-width: 100%;
 }
 
 .pdf-canvas {
@@ -141,6 +143,12 @@
     height: auto;
     position: relative;
     z-index: 1;
+    display: block;
+}
+
+.pdf-document-container canvas {
+    max-width: 100%;
+    height: auto;
 }
 
 .loading-container,
@@ -274,5 +282,9 @@
     
     .pdf-document-container {
         transform-origin: center top;
+    }
+    
+    .pdf-document-container > div {
+        transform: none !important; /* Prevent any transform issues on mobile */
     }
 }
