@@ -316,6 +316,11 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
     const handleFileChange = (event: React.ChangeEvent<HTMLInputElement>) => {
         const selectedFile = event.target.files?.[0];
         if (selectedFile && selectedFile.type === 'application/pdf') {
+            // Reset selected areas when new file is loaded
+            setSelectedAreas([]);
+            setHighlightedArea(null);
+            setIsSelectionMode(false);
+            
             setFile(selectedFile);
             void loadPDF(selectedFile);
         } else if (selectedFile) {
@@ -513,22 +518,6 @@ export const PDFViewer: React.FC<PDFViewerProps> = ({
                             >
                                 -
                             </ToolbarButton>
-                            <Select
-                                value={`${Math.round(scale * 100)}%`}
-                                onChange={(e, data) => {
-                                    const newScale = parseInt(data.value?.replace('%', '') || '100') / 100;
-                                    setScale(newScale);
-                                }}
-                                size="small"
-                                style={{ minWidth: isMobile ? '80px' : '100px' }}
-                            >
-                                <Option value="50%">50%</Option>
-                                <Option value="75%">75%</Option>
-                                <Option value="100%">100%</Option>
-                                <Option value="125%">125%</Option>
-                                <Option value="150%">150%</Option>
-                                <Option value="200%">200%</Option>
-                            </Select>
                             <ToolbarButton 
                                 onClick={handleZoomIn} 
                                 disabled={scale >= 3.0}

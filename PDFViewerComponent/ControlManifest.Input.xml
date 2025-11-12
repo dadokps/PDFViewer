@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8" ?>
 <manifest>
-  <control namespace="PDFViewerControl" constructor="PDFViewerControl" version="0.0.1" 
+  <control namespace="PDFViewerControl" constructor="PDFViewerControl" version="0.0.3" 
            display-name-key="PDFViewerControl" description-key="PDFViewerControl description" 
            control-type="virtual" >
     

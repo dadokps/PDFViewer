@@ -8,7 +8,6 @@ export class PDFViewerControl implements ComponentFramework.ReactControl<IInputs
     private theContainer: HTMLDivElement;
     private notifyOutputChanged: () => void;
     private context: ComponentFramework.Context<IInputs>;
-    private fileContent: string | null = null;
 
     constructor() { }
 
@@ -63,17 +62,7 @@ export class PDFViewerControl implements ComponentFramework.ReactControl<IInputs
             )
         );
     }
-
-    private handleFileUpload(file: File): void {
-        // Convert file to base64 for potential storage
-        const reader = new FileReader();
-        reader.onload = (e) => {
-            this.fileContent = e.target?.result as string;
-            this.notifyOutputChanged();
-        };
-        reader.readAsDataURL(file);
-    }
-
+    
     public getOutputs(): IOutputs {
         return {};
     }
